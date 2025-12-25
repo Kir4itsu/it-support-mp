@@ -1,10 +1,12 @@
 import { AppProvider } from "@/contexts/AppContext";
+import { supabase } from "@/lib/supabase";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+// Mencegah splash screen tertutup otomatis
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
@@ -72,6 +74,7 @@ function RootLayoutNav() {
           headerTintColor: '#fff',
         }} 
       />
+      {/* Mendaftarkan halaman reset-password agar bisa diakses */}
       <Stack.Screen 
         name="admin/reset-password" 
         options={{ 
@@ -86,9 +89,24 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const router = useRouter();
+
   useEffect(() => {
+    // Sembunyikan splash screen saat aplikasi siap
     SplashScreen.hideAsync();
-  }, []);
+
+    // Listener untuk menangkap event autentikasi dari Supabase
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, _session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        // Jika user datang dari link email reset password, paksa pindah ke halaman reset
+        router.replace('/admin/reset-password');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   return (
     <QueryClientProvider client={queryClient}>
