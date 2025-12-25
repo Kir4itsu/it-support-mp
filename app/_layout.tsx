@@ -72,6 +72,15 @@ function RootLayoutNav() {
           headerTintColor: '#fff',
         }} 
       />
+      <Stack.Screen 
+        name="admin/reset-password" 
+        options={{ 
+          headerShown: true,
+          title: "Reset Password",
+          headerStyle: { backgroundColor: '#7c3aed' },
+          headerTintColor: '#fff',
+        }} 
+      />
     </Stack>
   );
 }
