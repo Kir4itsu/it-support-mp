@@ -1,0 +1,793 @@
+import { theme } from '@/constants/theme';
+import { useApp } from '@/contexts/AppContext';
+import { supabase } from '@/lib/supabase';
+import type { Ticket, TicketStatus } from '@/types/ticket';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import {
+    Check,
+    Edit,
+    Filter,
+    LogOut,
+    Search,
+    Trash2,
+    X,
+} from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+const STATUS_OPTIONS: TicketStatus[] = ['DIAJUKAN', 'DISETUJUI', 'DIPROSES', 'SELESAI'];
+
+export default function AdminDashboardScreen() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { session, loading } = useApp();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<TicketStatus | 'ALL'>('ALL');
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editedStatus, setEditedStatus] = useState<TicketStatus>('DIAJUKAN');
+  const [adminNotes, setAdminNotes] = useState('');
+
+  useEffect(() => {
+    if (!loading && !session) {
+      router.replace('/admin/login' as any);
+    }
+  }, [session, loading, router]);
+
+  const { data: tickets = [], isLoading } = useQuery({
+    queryKey: ['admin-tickets'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tickets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data as Ticket[];
+    },
+    enabled: !!session,
+  });
+
+  const updateTicketMutation = useMutation({
+    mutationFn: async ({
+      id,
+      status,
+      notes,
+    }: {
+      id: string;
+      status: TicketStatus;
+      notes?: string;
+    }) => {
+      const { error } = await supabase
+        .from('tickets')
+        .update({
+          status,
+          admin_notes: notes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      queryClient.invalidateQueries({ queryKey: ['admin-tickets'] });
+      setEditModalVisible(false);
+      setSelectedTicket(null);
+      Alert.alert('Berhasil', 'Tiket berhasil diperbarui');
+    },
+    onError: (error) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', 'Gagal memperbarui tiket');
+      console.error('Update ticket error:', error);
+    },
+  });
+
+  const deleteTicketMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('tickets').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      queryClient.invalidateQueries({ queryKey: ['admin-tickets'] });
+      Alert.alert('Berhasil', 'Tiket berhasil dihapus');
+    },
+    onError: (error) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', 'Gagal menghapus tiket');
+      console.error('Delete ticket error:', error);
+    },
+  });
+
+  const handleLogout = async () => {
+    Alert.alert('Logout', 'Apakah Anda yakin ingin keluar?', [
+      { text: 'Batal', style: 'cancel' },
+      {
+        text: 'Keluar',
+        style: 'destructive',
+        onPress: async () => {
+          await supabase.auth.signOut();
+          router.replace('/');
+        },
+      },
+    ]);
+  };
+
+  const handleEditTicket = (ticket: Ticket) => {
+    setSelectedTicket(ticket);
+    setEditedStatus(ticket.status);
+    setAdminNotes(ticket.admin_notes || '');
+    setEditModalVisible(true);
+  };
+
+  const handleUpdateTicket = () => {
+    if (selectedTicket) {
+      updateTicketMutation.mutate({
+        id: selectedTicket.id,
+        status: editedStatus,
+        notes: adminNotes,
+      });
+    }
+  };
+
+  const handleDeleteTicket = (ticket: Ticket) => {
+    Alert.alert(
+      'Hapus Tiket',
+      `Apakah Anda yakin ingin menghapus tiket "${ticket.subject}"?`,
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus',
+          style: 'destructive',
+          onPress: () => deleteTicketMutation.mutate(ticket.id),
+        },
+      ]
+    );
+  };
+
+  const filteredTickets = tickets.filter((ticket) => {
+    const matchesSearch =
+      ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesFilter = filterStatus === 'ALL' || ticket.status === filterStatus;
+
+    return matchesSearch && matchesFilter;
+  });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'DIAJUKAN':
+        return theme.colors.warning;
+      case 'DISETUJUI':
+        return '#3b82f6';
+      case 'DIPROSES':
+        return theme.colors.primary;
+      case 'SELESAI':
+        return theme.colors.success;
+      default:
+        return theme.colors.textLight;
+    }
+  };
+
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case 'Wifi':
+        return '#ec4899';
+      case 'Account':
+        return '#8b5cf6';
+      case 'Hardware':
+        return '#f59e0b';
+      case 'Software':
+        return '#06b6d4';
+      default:
+        return theme.colors.primary;
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (!session) {
+    return null;
+  }
+
+  const statusCounts = {
+    ALL: tickets.length,
+    DIAJUKAN: tickets.filter((t) => t.status === 'DIAJUKAN').length,
+    DISETUJUI: tickets.filter((t) => t.status === 'DISETUJUI').length,
+    DIPROSES: tickets.filter((t) => t.status === 'DIPROSES').length,
+    SELESAI: tickets.filter((t) => t.status === 'SELESAI').length,
+  };
+
+  return (
+    <SafeAreaView edges={['bottom']} style={styles.container}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>Admin Dashboard</Text>
+          <Text style={styles.headerSubtitle}>{session.user.email}</Text>
+        </View>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <LogOut size={20} color={theme.colors.error} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputContainer}>
+          <Search size={20} color={theme.colors.textLight} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Cari tiket..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor={theme.colors.textLight}
+          />
+        </View>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterContainer}
+        contentContainerStyle={styles.filterContent}
+      >
+        <TouchableOpacity
+          style={[
+            styles.filterChip,
+            filterStatus === 'ALL' && styles.filterChipActive,
+          ]}
+          onPress={() => setFilterStatus('ALL')}
+        >
+          <Text
+            style={[
+              styles.filterChipText,
+              filterStatus === 'ALL' && styles.filterChipTextActive,
+            ]}
+          >
+            Semua ({statusCounts.ALL})
+          </Text>
+        </TouchableOpacity>
+
+        {STATUS_OPTIONS.map((status) => (
+          <TouchableOpacity
+            key={status}
+            style={[
+              styles.filterChip,
+              filterStatus === status && styles.filterChipActive,
+            ]}
+            onPress={() => setFilterStatus(status)}
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                filterStatus === status && styles.filterChipTextActive,
+              ]}
+            >
+              {status} ({statusCounts[status]})
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      ) : filteredTickets.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Filter size={48} color={theme.colors.textLight} />
+          <Text style={styles.emptyText}>Tidak ada tiket ditemukan</Text>
+        </View>
+      ) : (
+        <ScrollView style={styles.ticketList} showsVerticalScrollIndicator={false}>
+          <View style={styles.ticketListContent}>
+            {filteredTickets.map((ticket) => (
+              <View key={ticket.id} style={styles.ticketCard}>
+                <View style={styles.ticketHeader}>
+                  <View style={styles.ticketBadges}>
+                    <View
+                      style={[
+                        styles.categoryBadge,
+                        { backgroundColor: `${getCategoryColor(ticket.category)}20` },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryText,
+                          { color: getCategoryColor(ticket.category) },
+                        ]}
+                      >
+                        {ticket.category}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        { backgroundColor: `${getStatusColor(ticket.status)}20` },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.statusDot,
+                          { backgroundColor: getStatusColor(ticket.status) },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.statusText,
+                          { color: getStatusColor(ticket.status) },
+                        ]}
+                      >
+                        {ticket.status}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <Text style={styles.ticketSubject}>{ticket.subject}</Text>
+                <Text style={styles.ticketDescription} numberOfLines={2}>
+                  {ticket.description}
+                </Text>
+
+                <View style={styles.ticketInfo}>
+                  <Text style={styles.ticketInfoText}>
+                    Oleh: <Text style={styles.ticketInfoBold}>{ticket.nama}</Text>
+                  </Text>
+                  <Text style={styles.ticketInfoText}>
+                    {format(new Date(ticket.created_at), 'dd MMM yyyy, HH:mm')}
+                  </Text>
+                </View>
+
+                <View style={styles.ticketActions}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleEditTicket(ticket)}
+                  >
+                    <Edit size={18} color={theme.colors.primary} />
+                    <Text style={styles.actionButtonText}>Edit</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.actionButtonDanger]}
+                    onPress={() => handleDeleteTicket(ticket)}
+                  >
+                    <Trash2 size={18} color={theme.colors.error} />
+                    <Text style={[styles.actionButtonText, styles.actionButtonDangerText]}>
+                      Hapus
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      )}
+
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Tiket</Text>
+              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                <X size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              {selectedTicket && (
+                <>
+                  <Text style={styles.modalSubject}>{selectedTicket.subject}</Text>
+
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalLabel}>Status</Text>
+                    <View style={styles.statusOptions}>
+                      {STATUS_OPTIONS.map((status) => (
+                        <TouchableOpacity
+                          key={status}
+                          style={[
+                            styles.statusOption,
+                            editedStatus === status && styles.statusOptionActive,
+                          ]}
+                          onPress={() => setEditedStatus(status)}
+                        >
+                          {editedStatus === status && (
+                            <Check size={16} color={getStatusColor(status)} />
+                          )}
+                          <Text
+                            style={[
+                              styles.statusOptionText,
+                              editedStatus === status && {
+                                color: getStatusColor(status),
+                                fontWeight: '600',
+                              },
+                            ]}
+                          >
+                            {status}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalLabel}>Catatan Admin (Opsional)</Text>
+                    <TextInput
+                      style={styles.modalTextArea}
+                      placeholder="Tambahkan catatan untuk mahasiswa..."
+                      value={adminNotes}
+                      onChangeText={setAdminNotes}
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                      placeholderTextColor={theme.colors.textLight}
+                    />
+                  </View>
+                </>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => setEditModalVisible(false)}
+              >
+                <Text style={styles.modalButtonSecondaryText}>Batal</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonPrimary,
+                  updateTicketMutation.isPending && styles.modalButtonDisabled,
+                ]}
+                onPress={handleUpdateTicket}
+                disabled={updateTicketMutation.isPending}
+              >
+                {updateTicketMutation.isPending ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalButtonPrimaryText}>Simpan</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.lavenderLight,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderLight,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  logoutButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.lavenderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchContainer: {
+    padding: theme.spacing.lg,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderLight,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.lavenderLight,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: theme.spacing.md,
+    fontSize: 16,
+    color: theme.colors.text,
+  },
+  filterContainer: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderLight,
+  },
+  filterContent: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  filterChip: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.lavenderLight,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  filterChipActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xl,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    marginTop: theme.spacing.md,
+  },
+  ticketList: {
+    flex: 1,
+  },
+  ticketListContent: {
+    padding: theme.spacing.lg,
+    gap: theme.spacing.md,
+  },
+  ticketCard: {
+    backgroundColor: '#fff',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.md,
+  },
+  ticketHeader: {
+    marginBottom: theme.spacing.md,
+  },
+  ticketBadges: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    flexWrap: 'wrap',
+  },
+  categoryBadge: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    gap: 6,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  ticketSubject: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  ticketDescription: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: theme.spacing.md,
+  },
+  ticketInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderLight,
+    marginBottom: theme.spacing.md,
+  },
+  ticketInfoText: {
+    fontSize: 12,
+    color: theme.colors.textLight,
+  },
+  ticketInfoBold: {
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  ticketActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.lavender,
+    gap: theme.spacing.xs,
+  },
+  actionButtonDanger: {
+    backgroundColor: `${theme.colors.error}15`,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  actionButtonDangerText: {
+    color: theme.colors.error,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderLight,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  modalBody: {
+    padding: theme.spacing.lg,
+  },
+  modalSubject: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xl,
+  },
+  modalSection: {
+    marginBottom: theme.spacing.xl,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: theme.spacing.md,
+  },
+  statusOptions: {
+    gap: theme.spacing.sm,
+  },
+  statusOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.lavenderLight,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    gap: theme.spacing.sm,
+  },
+  statusOptionActive: {
+    backgroundColor: theme.colors.lavender,
+    borderColor: theme.colors.primary,
+  },
+  statusOptionText: {
+    fontSize: 16,
+    color: theme.colors.text,
+  },
+  modalTextArea: {
+    backgroundColor: theme.colors.lavenderLight,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    fontSize: 16,
+    color: theme.colors.text,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: theme.spacing.lg,
+    gap: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderLight,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: theme.spacing.lg,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonSecondary: {
+    backgroundColor: theme.colors.lavenderLight,
+  },
+  modalButtonSecondaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  modalButtonPrimary: {
+    backgroundColor: theme.colors.primary,
+  },
+  modalButtonPrimaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  modalButtonDisabled: {
+    opacity: 0.6,
+  },
+});
