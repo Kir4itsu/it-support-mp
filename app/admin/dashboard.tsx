@@ -91,19 +91,41 @@ export default function AdminDashboardScreen() {
   });
 
   // Fetch Admin Profiles
-  const { data: adminProfiles = [], isLoading: isLoadingAdmins } = useQuery({
+  const { data: adminProfiles = [], isLoading: isLoadingAdmins, error: adminError } = useQuery({
     queryKey: ['admin-profiles'],
     queryFn: async () => {
+      console.log('🔍 Fetching admin profiles...');
       const { data, error } = await supabase
         .from('admin_profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error fetching admin profiles:', error);
+        throw error;
+      }
+      
+      console.log('✅ Admin profiles fetched:', data);
       return data as AdminProfile[];
     },
     enabled: !!session,
   });
+
+  // Debug log
+  useEffect(() => {
+    if (adminError) {
+      console.error('Admin query error:', adminError);
+      Alert.alert('Error', 'Gagal memuat data admin');
+    }
+  }, [adminError]);
+
+  useEffect(() => {
+    console.log('Admin profiles state:', {
+      count: adminProfiles.length,
+      isLoading: isLoadingAdmins,
+      data: adminProfiles
+    });
+  }, [adminProfiles, isLoadingAdmins]);
 
   // Update Admin Profile Mutation
   const updateAdminMutation = useMutation({
@@ -914,6 +936,14 @@ export default function AdminDashboardScreen() {
             {isLoadingAdmins ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={styles.loadingText}>Memuat data admin...</Text>
+              </View>
+            ) : filteredAdmins.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Users size={48} color={theme.colors.textLight} />
+                <Text style={styles.emptyText}>
+                  {adminSearchQuery ? 'Tidak ada admin yang cocok' : 'Tidak ada data admin'}
+                </Text>
               </View>
             ) : (
               <ScrollView style={styles.adminList} showsVerticalScrollIndicator={false}>
@@ -990,9 +1020,6 @@ export default function AdminDashboardScreen() {
                 </View>
               </ScrollView>
             )}
-          </View>
-        </View>
-      </Modal>
 
       {/* Edit Admin Modal */}
       <Modal
@@ -1200,6 +1227,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: theme.spacing.xl,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginTop: theme.spacing.md,
   },
   header: {
     flexDirection: 'row',
