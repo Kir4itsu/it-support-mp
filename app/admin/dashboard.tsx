@@ -79,17 +79,17 @@ export default function AdminDashboardScreen() {
 
       // Prepare CSV content
       const headers = [
-        'ID',
-        'Nama',
-        'Email',
-        'NIM',
-        'Kategori',
-        'Subjek',
-        'Deskripsi',
-        'Status',
-        'Catatan Admin',
-        'Tanggal Dibuat',
-        'Tanggal Diperbarui'
+        'id',
+        'nama',
+        'email',
+        'hp',
+        'category',
+        'subject',
+        'description',
+        'status',
+        'admin_notes',
+        'created_at',
+        'updated_at'
       ];
 
       const csvRows = [headers.join(',')];
@@ -99,7 +99,7 @@ export default function AdminDashboardScreen() {
           ticket.id,
           `"${ticket.nama.replace(/"/g, '""')}"`,
           ticket.email,
-          ticket.nim,
+          ticket.hp,
           ticket.category,
           `"${ticket.subject.replace(/"/g, '""')}"`,
           `"${ticket.description.replace(/"/g, '""')}"`,
@@ -168,7 +168,7 @@ export default function AdminDashboardScreen() {
       const headers = lines[0].split(',').map((h: string) => h.trim().replace(/"/g, ''));
 
       // Validate headers
-      const requiredHeaders = ['Nama', 'Email', 'NIM', 'Kategori', 'Subjek', 'Deskripsi', 'Status'];
+      const requiredHeaders = ['nama', 'email', 'hp', 'category', 'subject', 'description', 'status'];
       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
       if (missingHeaders.length > 0) {
@@ -213,21 +213,21 @@ export default function AdminDashboardScreen() {
           });
 
           // Validate required fields
-          if (!ticketData.Nama || !ticketData.Email || !ticketData.Subjek) {
+          if (!ticketData.nama || !ticketData.email || !ticketData.subject) {
             errorCount++;
             continue;
           }
 
           // Insert to database
           const { error } = await supabase.from('tickets').insert({
-            nama: ticketData.Nama,
-            email: ticketData.Email,
-            nim: ticketData.NIM,
-            category: ticketData.Kategori || 'Lainnya',
-            subject: ticketData.Subjek,
-            description: ticketData.Deskripsi || '',
-            status: (ticketData.Status as TicketStatus) || 'DIAJUKAN',
-            admin_notes: ticketData['Catatan Admin'] || null,
+            nama: ticketData.nama,
+            email: ticketData.email,
+            hp: ticketData.hp,
+            category: ticketData.category || 'Lainnya',
+            subject: ticketData.subject,
+            description: ticketData.description || '',
+            status: (ticketData.status as TicketStatus) || 'DIAJUKAN',
+            admin_notes: ticketData.admin_notes || null,
           });
 
           if (error) {
