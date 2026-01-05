@@ -8,31 +8,44 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import {
   Check,
+  Download,
   Edit,
   Filter,
   LogOut,
   Search,
   Trash2,
-  X,
   Upload,
-  Download,
+  X,
+  Users,
+  ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react-native';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const STATUS_OPTIONS: TicketStatus[] = ['DIAJUKAN', 'DISETUJUI', 'DIPROSES', 'SELESAI'];
+const ROLE_OPTIONS = ['admin', 'super_admin'] as const;
+
+type AdminProfile = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  created_at: string;
+  updated_at: string;
+};
 
 export default function AdminDashboardScreen() {
   const router = useRouter();
@@ -48,6 +61,14 @@ export default function AdminDashboardScreen() {
   const [adminNotes, setAdminNotes] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+
+  // Admin Management States
+  const [adminManagementVisible, setAdminManagementVisible] = useState(false);
+  const [selectedAdmin, setSelectedAdmin] = useState<AdminProfile | null>(null);
+  const [editAdminModalVisible, setEditAdminModalVisible] = useState(false);
+  const [editedFullName, setEditedFullName] = useState('');
+  const [editedRole, setEditedRole] = useState('admin');
+  const [adminSearchQuery, setAdminSearchQuery] = useState('');
 
   useEffect(() => {
     if (!loading && !session) {
@@ -69,6 +90,92 @@ export default function AdminDashboardScreen() {
     enabled: !!session,
   });
 
+  // Fetch Admin Profiles
+  const { data: adminProfiles = [], isLoading: isLoadingAdmins } = useQuery({
+    queryKey: ['admin-profiles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('admin_profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data as AdminProfile[];
+    },
+    enabled: !!session,
+  });
+
+  // Update Admin Profile Mutation
+  const updateAdminMutation = useMutation({
+    mutationFn: async ({
+      id,
+      full_name,
+      role,
+    }: {
+      id: string;
+      full_name: string;
+      role: string;
+    }) => {
+      // Validasi: full_name tidak boleh kosong
+      if (!full_name.trim()) {
+        throw new Error('Nama lengkap tidak boleh kosong');
+      }
+
+      const { error } = await supabase
+        .from('admin_profiles')
+        .update({
+          full_name: full_name.trim(),
+          role,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      queryClient.invalidateQueries({ queryKey: ['admin-profiles'] });
+      setEditAdminModalVisible(false);
+      setSelectedAdmin(null);
+      Alert.alert('Berhasil', 'Profil admin berhasil diperbarui');
+    },
+    onError: (error: any) => {
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      Alert.alert('Error', error.message || 'Gagal memperbarui profil admin');
+      console.error('Update admin error:', error);
+    },
+  });
+
+  // Delete Admin Mutation (Hard Delete)
+  const deleteAdminMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('admin_profiles')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      queryClient.invalidateQueries({ queryKey: ['admin-profiles'] });
+      Alert.alert('Berhasil', 'Admin berhasil dihapus');
+    },
+    onError: (error) => {
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      Alert.alert('Error', 'Gagal menghapus admin');
+      console.error('Delete admin error:', error);
+    },
+  });
+
   // Export CSV Function for Web
   const handleExportCSV = async () => {
     try {
@@ -77,7 +184,6 @@ export default function AdminDashboardScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      // Prepare CSV content
       const headers = [
         'id',
         'nama',
@@ -115,7 +221,6 @@ export default function AdminDashboardScreen() {
       const fileName = `tickets_export_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`;
 
       if (Platform.OS === 'web') {
-        // Web implementation
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
@@ -143,7 +248,6 @@ export default function AdminDashboardScreen() {
     }
   };
 
-  // Import CSV Function for Web
   const handleImportCSV = async () => {
     if (Platform.OS === 'web') {
       fileInputRef.current?.click();
@@ -160,26 +264,20 @@ export default function AdminDashboardScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      // Read file content
       const content = await file.text();
-
-      // Parse CSV
       const lines = content.split('\n');
       const headers = lines[0].split(',').map((h: string) => h.trim().replace(/"/g, ''));
 
-      // Validate headers
       const requiredHeaders = ['nama', 'email', 'hp', 'category', 'subject', 'description', 'status'];
       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
       if (missingHeaders.length > 0) {
         Alert.alert('Error', `Header CSV tidak lengkap. Missing: ${missingHeaders.join(', ')}`);
         setIsImporting(false);
-        // Reset file input
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
 
-      // Confirm import
       if (window.confirm(`Ditemukan ${lines.length - 1} baris data. Lanjutkan import?`)) {
         let successCount = 0;
         let errorCount = 0;
@@ -188,7 +286,6 @@ export default function AdminDashboardScreen() {
           const line = lines[i].trim();
           if (!line) continue;
 
-          // Parse CSV row (handle quoted values)
           const values: string[] = [];
           let current = '';
           let inQuotes = false;
@@ -206,19 +303,16 @@ export default function AdminDashboardScreen() {
           }
           values.push(current.trim().replace(/^"|"$/g, ''));
 
-          // Create ticket object
           const ticketData: any = {};
           headers.forEach((header: string, index: number) => {
             ticketData[header] = values[index] || '';
           });
 
-          // Validate required fields
           if (!ticketData.nama || !ticketData.email || !ticketData.subject) {
             errorCount++;
             continue;
           }
 
-          // Insert to database
           const { error } = await supabase.from('tickets').insert({
             nama: ticketData.nama,
             email: ticketData.email,
@@ -238,7 +332,6 @@ export default function AdminDashboardScreen() {
           }
         }
 
-        // Refresh data
         queryClient.invalidateQueries({ queryKey: ['admin-tickets'] });
 
         if (Platform.OS !== 'web') {
@@ -257,7 +350,6 @@ export default function AdminDashboardScreen() {
       Alert.alert('Error', 'Gagal mengimpor data');
     } finally {
       setIsImporting(false);
-      // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -368,6 +460,53 @@ export default function AdminDashboardScreen() {
     );
   };
 
+  // Admin Management Handlers
+  const handleEditAdmin = (admin: AdminProfile) => {
+    if (admin.id === session?.user.id) {
+      Alert.alert('Peringatan', 'Anda tidak dapat mengedit profil Anda sendiri');
+      return;
+    }
+    setSelectedAdmin(admin);
+    setEditedFullName(admin.full_name);
+    setEditedRole(admin.role);
+    setEditAdminModalVisible(true);
+  };
+
+  const handleUpdateAdmin = () => {
+    if (!editedFullName.trim()) {
+      Alert.alert('Error', 'Nama lengkap tidak boleh kosong');
+      return;
+    }
+
+    if (selectedAdmin) {
+      updateAdminMutation.mutate({
+        id: selectedAdmin.id,
+        full_name: editedFullName,
+        role: editedRole,
+      });
+    }
+  };
+
+  const handleDeleteAdmin = (admin: AdminProfile) => {
+    if (admin.id === session?.user.id) {
+      Alert.alert('Peringatan', 'Anda tidak dapat menghapus akun Anda sendiri');
+      return;
+    }
+
+    Alert.alert(
+      'Hapus Admin',
+      `Apakah Anda yakin ingin menghapus admin "${admin.email}"?\n\nPeringatan: Ini akan menghapus profil admin dan akun autentikasi mereka secara permanen!`,
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus',
+          style: 'destructive',
+          onPress: () => deleteAdminMutation.mutate(admin.id),
+        },
+      ]
+    );
+  };
+
   const filteredTickets = tickets.filter((ticket) => {
     const matchesSearch =
       ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -377,6 +516,14 @@ export default function AdminDashboardScreen() {
     const matchesFilter = filterStatus === 'ALL' || ticket.status === filterStatus;
 
     return matchesSearch && matchesFilter;
+  });
+
+  const filteredAdmins = adminProfiles.filter((admin) => {
+    const matchesSearch =
+      admin.email.toLowerCase().includes(adminSearchQuery.toLowerCase()) ||
+      admin.full_name.toLowerCase().includes(adminSearchQuery.toLowerCase());
+
+    return matchesSearch;
   });
 
   const getStatusColor = (status: string) => {
@@ -409,6 +556,17 @@ export default function AdminDashboardScreen() {
     }
   };
 
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'super_admin':
+        return '#ef4444';
+      case 'admin':
+        return theme.colors.primary;
+      default:
+        return theme.colors.textLight;
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -431,7 +589,6 @@ export default function AdminDashboardScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={styles.container}>
-      {/* Hidden file input for web */}
       {Platform.OS === 'web' && (
         <input
           ref={fileInputRef as any}
@@ -448,6 +605,12 @@ export default function AdminDashboardScreen() {
           <Text style={styles.headerSubtitle}>{session.user.email}</Text>
         </View>
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => setAdminManagementVisible(true)}
+          >
+            <Users size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconButton}
             onPress={handleImportCSV}
@@ -489,7 +652,6 @@ export default function AdminDashboardScreen() {
         </View>
       </View>
 
-      {/* Status Cards Grid */}
       <View style={styles.statsContainer}>
         <TouchableOpacity
           style={[
@@ -720,6 +882,216 @@ export default function AdminDashboardScreen() {
         </ScrollView>
       )}
 
+      {/* Admin Management Modal */}
+      <Modal
+        visible={adminManagementVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setAdminManagementVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Kelola Admin</Text>
+              <TouchableOpacity onPress={() => setAdminManagementVisible(false)}>
+                <X size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.searchContainer}>
+              <View style={styles.searchInputContainer}>
+                <Search size={20} color={theme.colors.textLight} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Cari admin..."
+                  value={adminSearchQuery}
+                  onChangeText={setAdminSearchQuery}
+                  placeholderTextColor={theme.colors.textLight}
+                />
+              </View>
+            </View>
+
+            {isLoadingAdmins ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+              </View>
+            ) : (
+              <ScrollView style={styles.adminList} showsVerticalScrollIndicator={false}>
+                <View style={styles.adminListContent}>
+                  {filteredAdmins.map((admin) => (
+                    <View key={admin.id} style={styles.adminCard}>
+                      <View style={styles.adminHeader}>
+                        <View style={styles.adminInfo}>
+                          {admin.role === 'super_admin' ? (
+                            <ShieldCheck size={20} color={getRoleColor(admin.role)} />
+                          ) : (
+                            <ShieldAlert size={20} color={getRoleColor(admin.role)} />
+                          )}
+                          <View style={styles.adminTextContainer}>
+                            <Text style={styles.adminName}>{admin.full_name}</Text>
+                            <Text style={styles.adminEmail}>{admin.email}</Text>
+                          </View>
+                        </View>
+                        <View
+                          style={[
+                            styles.roleBadge,
+                            { backgroundColor: `${getRoleColor(admin.role)}20` },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.roleText,
+                              { color: getRoleColor(admin.role) },
+                            ]}
+                          >
+                            {admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.adminMeta}>
+                        <Text style={styles.adminMetaText}>
+                          Dibuat: {format(new Date(admin.created_at), 'dd MMM yyyy')}
+                        </Text>
+                        <Text style={styles.adminMetaText}>
+                          Diupdate: {format(new Date(admin.updated_at), 'dd MMM yyyy')}
+                        </Text>
+                      </View>
+
+                      {admin.id !== session?.user.id && (
+                        <View style={styles.adminActions}>
+                          <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={() => handleEditAdmin(admin)}
+                          >
+                            <Edit size={18} color={theme.colors.primary} />
+                            <Text style={styles.actionButtonText}>Edit</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.actionButtonDanger]}
+                            onPress={() => handleDeleteAdmin(admin)}
+                          >
+                            <Trash2 size={18} color={theme.colors.error} />
+                            <Text style={[styles.actionButtonText, styles.actionButtonDangerText]}>
+                              Hapus
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {admin.id === session?.user.id && (
+                        <View style={styles.currentUserBadge}>
+                          <Text style={styles.currentUserText}>Anda</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Admin Modal */}
+      <Modal
+        visible={editAdminModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setEditAdminModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Admin</Text>
+              <TouchableOpacity onPress={() => setEditAdminModalVisible(false)}>
+                <X size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              {selectedAdmin && (
+                <>
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalLabel}>Email</Text>
+                    <Text style={styles.modalReadOnly}>{selectedAdmin.email}</Text>
+                  </View>
+
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalLabel}>Nama Lengkap</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="Masukkan nama lengkap..."
+                      value={editedFullName}
+                      onChangeText={setEditedFullName}
+                      placeholderTextColor={theme.colors.textLight}
+                    />
+                  </View>
+
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalLabel}>Role</Text>
+                    <View style={styles.statusOptions}>
+                      {ROLE_OPTIONS.map((role) => (
+                        <TouchableOpacity
+                          key={role}
+                          style={[
+                            styles.statusOption,
+                            editedRole === role && styles.statusOptionActive,
+                          ]}
+                          onPress={() => setEditedRole(role)}
+                        >
+                          {editedRole === role && (
+                            <Check size={16} color={getRoleColor(role)} />
+                          )}
+                          <Text
+                            style={[
+                              styles.statusOptionText,
+                              editedRole === role && {
+                                color: getRoleColor(role),
+                                fontWeight: '600',
+                              },
+                            ]}
+                          >
+                            {role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => setEditAdminModalVisible(false)}
+              >
+                <Text style={styles.modalButtonSecondaryText}>Batal</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonPrimary,
+                  updateAdminMutation.isPending && styles.modalButtonDisabled,
+                ]}
+                onPress={handleUpdateAdmin}
+                disabled={updateAdminMutation.isPending}
+              >
+                {updateAdminMutation.isPending ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalButtonPrimaryText}>Simpan</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Ticket Modal */}
       <Modal
         visible={editModalVisible}
         animationType="slide"
@@ -1049,6 +1421,9 @@ const styles = StyleSheet.create({
   actionButtonDanger: {
     backgroundColor: `${theme.colors.error}15`,
   },
+  actionButtonSuccess: {
+    backgroundColor: `${theme.colors.success}15`,
+  },
   actionButtonText: {
     fontSize: 14,
     fontWeight: '600',
@@ -1056,6 +1431,9 @@ const styles = StyleSheet.create({
   },
   actionButtonDangerText: {
     color: theme.colors.error,
+  },
+  actionButtonSuccessText: {
+    color: theme.colors.success,
   },
   modalOverlay: {
     flex: 1,
@@ -1098,6 +1476,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.text,
     marginBottom: theme.spacing.md,
+  },
+  modalReadOnly: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    backgroundColor: theme.colors.lavenderLight,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+  },
+  modalInput: {
+    backgroundColor: theme.colors.lavenderLight,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    fontSize: 16,
+    color: theme.colors.text,
   },
   statusOptions: {
     gap: theme.spacing.sm,
@@ -1161,5 +1553,82 @@ const styles = StyleSheet.create({
   },
   modalButtonDisabled: {
     opacity: 0.6,
+  },
+  adminList: {
+    flex: 1,
+  },
+  adminListContent: {
+    padding: theme.spacing.lg,
+    gap: theme.spacing.md,
+  },
+  adminCard: {
+    backgroundColor: '#fff',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.md,
+  },
+  adminHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: theme.spacing.md,
+  },
+  adminInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    flex: 1,
+  },
+  adminTextContainer: {
+    flex: 1,
+  },
+  adminName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 2,
+  },
+  adminEmail: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  roleBadge: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+  },
+  roleText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  adminMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderLight,
+    marginBottom: theme.spacing.md,
+  },
+  adminMetaText: {
+    fontSize: 12,
+    color: theme.colors.textLight,
+  },
+  adminActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  currentUserBadge: {
+    backgroundColor: theme.colors.lavender,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+  },
+  currentUserText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
   },
 });
