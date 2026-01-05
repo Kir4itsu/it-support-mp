@@ -19,6 +19,8 @@ import {
   Users,
   ShieldCheck,
   ShieldAlert,
+  UserPlus,
+  Copy,
 } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -69,6 +71,15 @@ export default function AdminDashboardScreen() {
   const [editedFullName, setEditedFullName] = useState('');
   const [editedRole, setEditedRole] = useState('admin');
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
+  
+  // Create Admin States
+  const [createAdminModalVisible, setCreateAdminModalVisible] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminFullName, setNewAdminFullName] = useState('');
+  const [newAdminRole, setNewAdminRole] = useState('admin');
+  const [generatedPassword, setGeneratedPassword] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [createdAdminEmail, setCreatedAdminEmail] = useState('');
 
   useEffect(() => {
     if (!loading && !session) {
@@ -195,6 +206,72 @@ export default function AdminDashboardScreen() {
       }
       Alert.alert('Error', 'Gagal menghapus admin');
       console.error('Delete admin error:', error);
+    },
+  });
+
+  // Create Admin Mutation
+  const createAdminMutation = useMutation({
+    mutationFn: async ({
+      email,
+      full_name,
+      role,
+      password,
+    }: {
+      email: string;
+      full_name: string;
+      role: string;
+      password: string;
+    }) => {
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name,
+          },
+          emailRedirectTo: window.location.origin + '/admin/login',
+        },
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Failed to create user');
+
+      // Wait a bit for trigger to create profile
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Update role if not default admin
+      if (role !== 'admin') {
+        const { error: updateError } = await supabase
+          .from('admin_profiles')
+          .update({ role })
+          .eq('id', authData.user.id);
+
+        if (updateError) throw updateError;
+      }
+
+      return { email, password };
+    },
+    onSuccess: (data) => {
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      queryClient.invalidateQueries({ queryKey: ['admin-profiles'] });
+      setCreateAdminModalVisible(false);
+      setGeneratedPassword(data.password);
+      setCreatedAdminEmail(data.email);
+      setShowPasswordModal(true);
+      // Reset form
+      setNewAdminEmail('');
+      setNewAdminFullName('');
+      setNewAdminRole('admin');
+    },
+    onError: (error: any) => {
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      Alert.alert('Error', error.message || 'Gagal membuat admin baru');
+      console.error('Create admin error:', error);
     },
   });
 
@@ -527,6 +604,47 @@ export default function AdminDashboardScreen() {
         },
       ]
     );
+  };
+
+  // Generate random password
+  const generatePassword = () => {
+    const length = 12;
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      password += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    return password;
+  };
+
+  const handleCreateAdmin = () => {
+    if (!newAdminEmail.trim() || !newAdminFullName.trim()) {
+      Alert.alert('Error', 'Email dan nama lengkap harus diisi');
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newAdminEmail)) {
+      Alert.alert('Error', 'Format email tidak valid');
+      return;
+    }
+
+    const password = generatePassword();
+
+    createAdminMutation.mutate({
+      email: newAdminEmail.trim(),
+      full_name: newAdminFullName.trim(),
+      role: newAdminRole,
+      password,
+    });
+  };
+
+  const handleCopyPassword = () => {
+    if (Platform.OS === 'web') {
+      navigator.clipboard.writeText(generatedPassword);
+      Alert.alert('Berhasil', 'Password berhasil disalin');
+    }
   };
 
   const filteredTickets = tickets.filter((ticket) => {
@@ -915,9 +1033,20 @@ export default function AdminDashboardScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Kelola Admin</Text>
-              <TouchableOpacity onPress={() => setAdminManagementVisible(false)}>
-                <X size={24} color={theme.colors.text} />
-              </TouchableOpacity>
+              <View style={styles.modalHeaderActions}>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => {
+                    setAdminManagementVisible(false);
+                    setCreateAdminModalVisible(true);
+                  }}
+                >
+                  <UserPlus size={20} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setAdminManagementVisible(false)}>
+                  <X size={24} color={theme.colors.text} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.searchContainer}>
@@ -1217,6 +1346,169 @@ export default function AdminDashboardScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Create Admin Modal */}
+      <Modal
+        visible={createAdminModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCreateAdminModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Tambah Admin Baru</Text>
+              <TouchableOpacity onPress={() => setCreateAdminModalVisible(false)}>
+                <X size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <View style={styles.modalSection}>
+                <Text style={styles.modalLabel}>Email</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="admin@example.com"
+                  value={newAdminEmail}
+                  onChangeText={setNewAdminEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholderTextColor={theme.colors.textLight}
+                />
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalLabel}>Nama Lengkap</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Masukkan nama lengkap..."
+                  value={newAdminFullName}
+                  onChangeText={setNewAdminFullName}
+                  placeholderTextColor={theme.colors.textLight}
+                />
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalLabel}>Role</Text>
+                <View style={styles.statusOptions}>
+                  {ROLE_OPTIONS.map((role) => (
+                    <TouchableOpacity
+                      key={role}
+                      style={[
+                        styles.statusOption,
+                        newAdminRole === role && styles.statusOptionActive,
+                      ]}
+                      onPress={() => setNewAdminRole(role)}
+                    >
+                      {newAdminRole === role && (
+                        <Check size={16} color={getRoleColor(role)} />
+                      )}
+                      <Text
+                        style={[
+                          styles.statusOptionText,
+                          newAdminRole === role && {
+                            color: getRoleColor(role),
+                            fontWeight: '600',
+                          },
+                        ]}
+                      >
+                        {role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.infoBox}>
+                <Text style={styles.infoText}>
+                  ℹ️ Password temporary akan di-generate otomatis dan ditampilkan setelah admin berhasil dibuat.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => setCreateAdminModalVisible(false)}
+              >
+                <Text style={styles.modalButtonSecondaryText}>Batal</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonPrimary,
+                  createAdminMutation.isPending && styles.modalButtonDisabled,
+                ]}
+                onPress={handleCreateAdmin}
+                disabled={createAdminMutation.isPending}
+              >
+                {createAdminMutation.isPending ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalButtonPrimaryText}>Buat Admin</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Password Display Modal */}
+      <Modal
+        visible={showPasswordModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowPasswordModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.passwordModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Admin Berhasil Dibuat!</Text>
+            </View>
+
+            <View style={styles.passwordModalBody}>
+              <Text style={styles.passwordLabel}>Email Admin:</Text>
+              <View style={styles.passwordBox}>
+                <Text style={styles.passwordText}>{createdAdminEmail}</Text>
+              </View>
+
+              <Text style={styles.passwordLabel}>Password Temporary:</Text>
+              <View style={styles.passwordBox}>
+                <Text style={styles.passwordText}>{generatedPassword}</Text>
+                <TouchableOpacity
+                  style={styles.copyButton}
+                  onPress={handleCopyPassword}
+                >
+                  <Copy size={20} color={theme.colors.primary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.warningBox}>
+                <Text style={styles.warningText}>
+                  ⚠️ Pastikan Anda menyimpan password ini! Password hanya ditampilkan sekali dan tidak dapat dilihat lagi.
+                </Text>
+                <Text style={styles.warningText}>
+                  📧 Kirimkan email dan password ini ke admin baru agar mereka bisa login.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary, { flex: 1 }]}
+                onPress={() => {
+                  setShowPasswordModal(false);
+                  setGeneratedPassword('');
+                  setCreatedAdminEmail('');
+                }}
+              >
+                <Text style={styles.modalButtonPrimaryText}>Tutup</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1490,6 +1782,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderLight,
   },
+  modalHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
@@ -1666,5 +1971,70 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: theme.colors.primary,
+  },
+  infoBox: {
+    backgroundColor: `${theme.colors.primary}10`,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.primary,
+  },
+  infoText: {
+    fontSize: 13,
+    color: theme.colors.text,
+    lineHeight: 18,
+  },
+  passwordModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: theme.borderRadius.xl,
+    maxWidth: 500,
+    width: '90%',
+    maxHeight: '70%',
+  },
+  passwordModalBody: {
+    padding: theme.spacing.lg,
+  },
+  passwordLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+  },
+  passwordBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.lavenderLight,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+  },
+  passwordText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  copyButton: {
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.lavender,
+    marginLeft: theme.spacing.sm,
+  },
+  warningBox: {
+    backgroundColor: `${theme.colors.warning}15`,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginTop: theme.spacing.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.warning,
+    gap: theme.spacing.sm,
+  },
+  warningText: {
+    fontSize: 13,
+    color: theme.colors.text,
+    lineHeight: 18,
   },
 });
