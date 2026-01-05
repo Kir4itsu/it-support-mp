@@ -1,16 +1,16 @@
-import { AppProvider } from "@/contexts/AppContext";
 import { theme } from "@/constants/theme";
+import { AppProvider } from "@/contexts/AppContext";
 import { supabase } from "@/lib/supabase";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
-import { 
-  ActivityIndicator, 
-  View, 
-  Text, 
+import {
+  ActivityIndicator,
+  StatusBar,
   StyleSheet,
-  StatusBar 
+  Text,
+  View
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -108,7 +108,7 @@ function RootLayoutNav() {
       <Stack.Screen 
         name="create-ticket" 
         options={{ 
-          headerShown: false, // Kita sudah buat custom header di component-nya
+          headerShown: false,
           presentation: 'card',
         }} 
       />
@@ -122,12 +122,11 @@ function RootLayoutNav() {
         }} 
       />
 
-      {/* Admin Screens - Group dengan presentation modal */}
+      {/* Admin Screens - Semua headerShown: false karena dah ada custom header :) */}
       <Stack.Screen 
         name="admin/login" 
         options={{ 
-          headerShown: true,
-          title: "Admin Login",
+          headerShown: false, // Disable default header
           presentation: 'card',
         }} 
       />
@@ -135,8 +134,7 @@ function RootLayoutNav() {
       <Stack.Screen 
         name="admin/register" 
         options={{ 
-          headerShown: true,
-          title: "Daftar Admin",
+          headerShown: false, // Disable default header
           presentation: 'card',
         }} 
       />
@@ -144,7 +142,7 @@ function RootLayoutNav() {
       <Stack.Screen 
         name="admin/dashboard" 
         options={{ 
-          headerShown: false, // Custom header di component
+          headerShown: false,
           presentation: 'card',
         }} 
       />
@@ -152,18 +150,16 @@ function RootLayoutNav() {
       <Stack.Screen 
         name="admin/forgot-password" 
         options={{ 
-          headerShown: true,
-          title: "Lupa Password",
-          presentation: 'modal',
+          headerShown: false, // Disable default header
+          presentation: 'card', // Changed from modal to card
         }} 
       />
       
       <Stack.Screen 
         name="admin/reset-password" 
         options={{ 
-          headerShown: true,
-          title: "Reset Password",
-          presentation: 'modal',
+          headerShown: false, // Disable default header
+          presentation: 'card', // Changed from modal to card
         }} 
       />
     </Stack>
@@ -244,8 +240,9 @@ export default function RootLayout() {
             <GestureHandlerRootView style={{ flex: 1 }}>
               {/* Status Bar Configuration */}
               <StatusBar 
-                barStyle="light-content" 
-                backgroundColor={theme.colors.primary} 
+                barStyle="dark-content" 
+                backgroundColor="transparent"
+                translucent
               />
               
               <RootLayoutNav />
