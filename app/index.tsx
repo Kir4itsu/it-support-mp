@@ -22,14 +22,13 @@ import {
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   Dimensions,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -138,13 +137,6 @@ export default function StudentDashboard() {
                 <Text style={styles.userSubtext}>Mari kelola tiket IT Anda</Text>
               </View>
               <View style={styles.headerButtons}>
-                <TouchableOpacity 
-                  style={styles.infoButton}
-                  onPress={() => router.push('/system-info')}
-                  activeOpacity={0.7}
-                >
-                  <Info size={20} color="#fff" />
-                </TouchableOpacity>
                 <TouchableOpacity 
                   style={styles.adminButton}
                   onPress={() => router.push('/admin/login')}
