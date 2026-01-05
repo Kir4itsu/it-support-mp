@@ -247,49 +247,142 @@ export default function AdminDashboardScreen() {
         </View>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterContainer}
-        contentContainerStyle={styles.filterContent}
-      >
+      {/* Status Cards Grid */}
+      <View style={styles.statsContainer}>
         <TouchableOpacity
           style={[
-            styles.filterChip,
-            filterStatus === 'ALL' && styles.filterChipActive,
+            styles.statCard,
+            filterStatus === 'ALL' && styles.statCardActive,
           ]}
           onPress={() => setFilterStatus('ALL')}
         >
-          <Text
-            style={[
-              styles.filterChipText,
-              filterStatus === 'ALL' && styles.filterChipTextActive,
-            ]}
-          >
-            Semua ({statusCounts.ALL})
-          </Text>
+          <View style={styles.statCardContent}>
+            <Text style={[
+              styles.statCount,
+              filterStatus === 'ALL' && styles.statCountActive
+            ]}>
+              {statusCounts.ALL}
+            </Text>
+            <Text style={[
+              styles.statLabel,
+              filterStatus === 'ALL' && styles.statLabelActive
+            ]}>
+              Semua Tiket
+            </Text>
+          </View>
+          {filterStatus === 'ALL' && (
+            <View style={[styles.statIndicator, { backgroundColor: theme.colors.primary }]} />
+          )}
         </TouchableOpacity>
 
-        {STATUS_OPTIONS.map((status) => (
-          <TouchableOpacity
-            key={status}
-            style={[
-              styles.filterChip,
-              filterStatus === status && styles.filterChipActive,
-            ]}
-            onPress={() => setFilterStatus(status)}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                filterStatus === status && styles.filterChipTextActive,
-              ]}
-            >
-              {status} ({statusCounts[status]})
+        <TouchableOpacity
+          style={[
+            styles.statCard,
+            filterStatus === 'DIAJUKAN' && styles.statCardActive,
+          ]}
+          onPress={() => setFilterStatus('DIAJUKAN')}
+        >
+          <View style={styles.statCardContent}>
+            <Text style={[
+              styles.statCount,
+              filterStatus === 'DIAJUKAN' && styles.statCountActive,
+              { color: theme.colors.warning }
+            ]}>
+              {statusCounts.DIAJUKAN}
             </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+            <Text style={[
+              styles.statLabel,
+              filterStatus === 'DIAJUKAN' && styles.statLabelActive
+            ]}>
+              Diajukan
+            </Text>
+          </View>
+          {filterStatus === 'DIAJUKAN' && (
+            <View style={[styles.statIndicator, { backgroundColor: theme.colors.warning }]} />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.statCard,
+            filterStatus === 'DISETUJUI' && styles.statCardActive,
+          ]}
+          onPress={() => setFilterStatus('DISETUJUI')}
+        >
+          <View style={styles.statCardContent}>
+            <Text style={[
+              styles.statCount,
+              filterStatus === 'DISETUJUI' && styles.statCountActive,
+              { color: '#3b82f6' }
+            ]}>
+              {statusCounts.DISETUJUI}
+            </Text>
+            <Text style={[
+              styles.statLabel,
+              filterStatus === 'DISETUJUI' && styles.statLabelActive
+            ]}>
+              Disetujui
+            </Text>
+          </View>
+          {filterStatus === 'DISETUJUI' && (
+            <View style={[styles.statIndicator, { backgroundColor: '#3b82f6' }]} />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.statCard,
+            filterStatus === 'DIPROSES' && styles.statCardActive,
+          ]}
+          onPress={() => setFilterStatus('DIPROSES')}
+        >
+          <View style={styles.statCardContent}>
+            <Text style={[
+              styles.statCount,
+              filterStatus === 'DIPROSES' && styles.statCountActive,
+              { color: theme.colors.primary }
+            ]}>
+              {statusCounts.DIPROSES}
+            </Text>
+            <Text style={[
+              styles.statLabel,
+              filterStatus === 'DIPROSES' && styles.statLabelActive
+            ]}>
+              Diproses
+            </Text>
+          </View>
+          {filterStatus === 'DIPROSES' && (
+            <View style={[styles.statIndicator, { backgroundColor: theme.colors.primary }]} />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.statCard,
+            filterStatus === 'SELESAI' && styles.statCardActive,
+          ]}
+          onPress={() => setFilterStatus('SELESAI')}
+        >
+          <View style={styles.statCardContent}>
+            <Text style={[
+              styles.statCount,
+              filterStatus === 'SELESAI' && styles.statCountActive,
+              { color: theme.colors.success }
+            ]}>
+              {statusCounts.SELESAI}
+            </Text>
+            <Text style={[
+              styles.statLabel,
+              filterStatus === 'SELESAI' && styles.statLabelActive
+            ]}>
+              Selesai
+            </Text>
+          </View>
+          {filterStatus === 'SELESAI' && (
+            <View style={[styles.statIndicator, { backgroundColor: theme.colors.success }]} />
+          )}
+        </TouchableOpacity>
+      </View>
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
@@ -541,35 +634,61 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.text,
   },
-  filterContainer: {
+  // New Stats Container Styles
+  statsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: theme.spacing.md,
+    gap: theme.spacing.md,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderLight,
   },
-  filterContent: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    gap: theme.spacing.sm,
-  },
-  filterChip: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.full,
+  statCard: {
+    flex: 1,
+    minWidth: '30%',
     backgroundColor: theme.colors.lavenderLight,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    position: 'relative',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  filterChipActive: {
-    backgroundColor: theme.colors.primary,
+  statCardActive: {
+    backgroundColor: '#fff',
     borderColor: theme.colors.primary,
+    ...theme.shadows.sm,
   },
-  filterChipText: {
-    fontSize: 14,
-    fontWeight: '600',
+  statCardContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statCount: {
+    fontSize: 28,
+    fontWeight: '700',
     color: theme.colors.text,
+    marginBottom: 4,
   },
-  filterChipTextActive: {
-    color: '#fff',
+  statCountActive: {
+    fontSize: 30,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+  },
+  statLabelActive: {
+    color: theme.colors.text,
+    fontWeight: '700',
+  },
+  statIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
   },
   emptyContainer: {
     flex: 1,
