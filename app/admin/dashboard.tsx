@@ -1020,6 +1020,9 @@ export default function AdminDashboardScreen() {
                 </View>
               </ScrollView>
             )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Edit Admin Modal */}
       <Modal
