@@ -6,9 +6,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import {
   Check,
   Edit,
@@ -20,7 +17,7 @@ import {
   Upload,
   Download,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -31,6 +28,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -40,6 +38,7 @@ export default function AdminDashboardScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { session, loading } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<TicketStatus | 'ALL'>('ALL');
@@ -70,11 +69,13 @@ export default function AdminDashboardScreen() {
     enabled: !!session,
   });
 
-  // Export CSV Function
+  // Export CSV Function for Web
   const handleExportCSV = async () => {
     try {
       setIsExporting(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
 
       // Prepare CSV content
       const headers = [
@@ -111,64 +112,60 @@ export default function AdminDashboardScreen() {
       });
 
       const csvContent = csvRows.join('\n');
-
-      // Save to file
       const fileName = `tickets_export_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
 
-      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      // Share the file
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'text/csv',
-          dialogTitle: 'Export Tiket CSV',
-          UTI: 'public.comma-separated-values-text',
-        });
-      } else {
-        Alert.alert('Error', 'Sharing tidak tersedia di perangkat ini');
+      if (Platform.OS === 'web') {
+        // Web implementation
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', fileName);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
       }
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
       Alert.alert('Berhasil', `${tickets.length} tiket berhasil diekspor`);
     } catch (error) {
       console.error('Export error:', error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       Alert.alert('Error', 'Gagal mengekspor data');
     } finally {
       setIsExporting(false);
     }
   };
 
-  // Import CSV Function
+  // Import CSV Function for Web
   const handleImportCSV = async () => {
+    if (Platform.OS === 'web') {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleFileChange = async (event: any) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
     try {
       setIsImporting(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      // Pick CSV file
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'text/comma-separated-values',
-        copyToCacheDirectory: true,
-      });
-
-      if (result.canceled) {
-        setIsImporting(false);
-        return;
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      const fileUri = result.assets[0].uri;
-
       // Read file content
-      const content = await FileSystem.readAsStringAsync(fileUri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      const content = await file.text();
 
       // Parse CSV
       const lines = content.split('\n');
-      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const headers = lines[0].split(',').map((h: string) => h.trim().replace(/"/g, ''));
 
       // Validate headers
       const requiredHeaders = ['Nama', 'Email', 'NIM', 'Kategori', 'Subjek', 'Deskripsi', 'Status'];
@@ -177,100 +174,91 @@ export default function AdminDashboardScreen() {
       if (missingHeaders.length > 0) {
         Alert.alert('Error', `Header CSV tidak lengkap. Missing: ${missingHeaders.join(', ')}`);
         setIsImporting(false);
+        // Reset file input
+        if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
 
       // Confirm import
-      Alert.alert(
-        'Konfirmasi Import',
-        `Ditemukan ${lines.length - 1} baris data. Lanjutkan import?`,
-        [
-          { text: 'Batal', style: 'cancel', onPress: () => setIsImporting(false) },
-          {
-            text: 'Import',
-            onPress: async () => {
-              try {
-                let successCount = 0;
-                let errorCount = 0;
+      if (window.confirm(`Ditemukan ${lines.length - 1} baris data. Lanjutkan import?`)) {
+        let successCount = 0;
+        let errorCount = 0;
 
-                for (let i = 1; i < lines.length; i++) {
-                  const line = lines[i].trim();
-                  if (!line) continue;
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
 
-                  // Parse CSV row (handle quoted values)
-                  const values: string[] = [];
-                  let current = '';
-                  let inQuotes = false;
+          // Parse CSV row (handle quoted values)
+          const values: string[] = [];
+          let current = '';
+          let inQuotes = false;
 
-                  for (let j = 0; j < line.length; j++) {
-                    const char = line[j];
-                    if (char === '"') {
-                      inQuotes = !inQuotes;
-                    } else if (char === ',' && !inQuotes) {
-                      values.push(current.trim().replace(/^"|"$/g, ''));
-                      current = '';
-                    } else {
-                      current += char;
-                    }
-                  }
-                  values.push(current.trim().replace(/^"|"$/g, ''));
+          for (let j = 0; j < line.length; j++) {
+            const char = line[j];
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              values.push(current.trim().replace(/^"|"$/g, ''));
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          values.push(current.trim().replace(/^"|"$/g, ''));
 
-                  // Create ticket object
-                  const ticketData: any = {};
-                  headers.forEach((header, index) => {
-                    ticketData[header] = values[index] || '';
-                  });
+          // Create ticket object
+          const ticketData: any = {};
+          headers.forEach((header: string, index: number) => {
+            ticketData[header] = values[index] || '';
+          });
 
-                  // Validate required fields
-                  if (!ticketData.Nama || !ticketData.Email || !ticketData.Subjek) {
-                    errorCount++;
-                    continue;
-                  }
+          // Validate required fields
+          if (!ticketData.Nama || !ticketData.Email || !ticketData.Subjek) {
+            errorCount++;
+            continue;
+          }
 
-                  // Insert to database
-                  const { error } = await supabase.from('tickets').insert({
-                    nama: ticketData.Nama,
-                    email: ticketData.Email,
-                    nim: ticketData.NIM,
-                    category: ticketData.Kategori || 'Lainnya',
-                    subject: ticketData.Subjek,
-                    description: ticketData.Deskripsi || '',
-                    status: (ticketData.Status as TicketStatus) || 'DIAJUKAN',
-                    admin_notes: ticketData['Catatan Admin'] || null,
-                  });
+          // Insert to database
+          const { error } = await supabase.from('tickets').insert({
+            nama: ticketData.Nama,
+            email: ticketData.Email,
+            nim: ticketData.NIM,
+            category: ticketData.Kategori || 'Lainnya',
+            subject: ticketData.Subjek,
+            description: ticketData.Deskripsi || '',
+            status: (ticketData.Status as TicketStatus) || 'DIAJUKAN',
+            admin_notes: ticketData['Catatan Admin'] || null,
+          });
 
-                  if (error) {
-                    console.error('Insert error:', error);
-                    errorCount++;
-                  } else {
-                    successCount++;
-                  }
-                }
+          if (error) {
+            console.error('Insert error:', error);
+            errorCount++;
+          } else {
+            successCount++;
+          }
+        }
 
-                // Refresh data
-                queryClient.invalidateQueries({ queryKey: ['admin-tickets'] });
+        // Refresh data
+        queryClient.invalidateQueries({ queryKey: ['admin-tickets'] });
 
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert(
-                  'Import Selesai',
-                  `Berhasil: ${successCount} tiket\nGagal: ${errorCount} tiket`
-                );
-              } catch (error) {
-                console.error('Import error:', error);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                Alert.alert('Error', 'Gagal mengimpor data');
-              } finally {
-                setIsImporting(false);
-              }
-            },
-          },
-        ]
-      );
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        Alert.alert(
+          'Import Selesai',
+          `Berhasil: ${successCount} tiket\nGagal: ${errorCount} tiket`
+        );
+      }
     } catch (error) {
       console.error('Import error:', error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'Gagal membaca file CSV');
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      Alert.alert('Error', 'Gagal mengimpor data');
+    } finally {
       setIsImporting(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -296,14 +284,18 @@ export default function AdminDashboardScreen() {
       if (error) throw error;
     },
     onSuccess: () => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
       queryClient.invalidateQueries({ queryKey: ['admin-tickets'] });
       setEditModalVisible(false);
       setSelectedTicket(null);
       Alert.alert('Berhasil', 'Tiket berhasil diperbarui');
     },
     onError: (error) => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       Alert.alert('Error', 'Gagal memperbarui tiket');
       console.error('Update ticket error:', error);
     },
@@ -315,12 +307,16 @@ export default function AdminDashboardScreen() {
       if (error) throw error;
     },
     onSuccess: () => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
       queryClient.invalidateQueries({ queryKey: ['admin-tickets'] });
       Alert.alert('Berhasil', 'Tiket berhasil dihapus');
     },
     onError: (error) => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       Alert.alert('Error', 'Gagal menghapus tiket');
       console.error('Delete ticket error:', error);
     },
@@ -435,6 +431,17 @@ export default function AdminDashboardScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={styles.container}>
+      {/* Hidden file input for web */}
+      {Platform.OS === 'web' && (
+        <input
+          ref={fileInputRef as any}
+          type="file"
+          accept=".csv"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
+      )}
+
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Admin Dashboard</Text>
