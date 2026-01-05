@@ -1,6 +1,6 @@
 import { theme } from '@/constants/theme';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import {
   ArrowLeft,
   CheckCircle,
@@ -66,6 +66,9 @@ export default function SystemInfo() {
 
   return (
     <View style={styles.container}>
+      {/* Hide default header */}
+      <Stack.Screen options={{ headerShown: false }} />
+      
       {/* Header */}
       <LinearGradient
         colors={['#7c3aed', '#6d28d9']}
