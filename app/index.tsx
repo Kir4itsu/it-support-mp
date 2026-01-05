@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  Info,
   Plus,
   Search,
   Settings,
@@ -136,13 +137,22 @@ export default function StudentDashboard() {
                 <Text style={styles.userName}>{userIdentity?.nama || 'Mahasiswa'}</Text>
                 <Text style={styles.userSubtext}>Mari kelola tiket IT Anda</Text>
               </View>
-              <TouchableOpacity 
-                style={styles.adminButton}
-                onPress={() => router.push('/admin/login')}
-                activeOpacity={0.7}
-              >
-                <Settings size={22} color="#fff" />
-              </TouchableOpacity>
+              <View style={styles.headerButtons}>
+                <TouchableOpacity 
+                  style={styles.infoButton}
+                  onPress={() => router.push('/system-info')}
+                  activeOpacity={0.7}
+                >
+                  <Info size={20} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.adminButton}
+                  onPress={() => router.push('/admin/login')}
+                  activeOpacity={0.7}
+                >
+                  <Settings size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
             </View>
             
             {/* Enhanced Quick Stats */}
@@ -223,6 +233,26 @@ export default function StudentDashboard() {
                 <ChevronRight size={24} color="rgba(255, 255, 255, 0.9)" strokeWidth={2.5} />
               </View>
             </LinearGradient>
+          </TouchableOpacity>
+
+          {/* System Info Button */}
+          <TouchableOpacity 
+            style={styles.systemInfoButton}
+            onPress={() => router.push('/system-info')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.systemInfoContent}>
+              <View style={styles.systemInfoLeft}>
+                <View style={styles.systemInfoIcon}>
+                  <Info size={22} color="#7c3aed" strokeWidth={2.5} />
+                </View>
+                <View style={styles.systemInfoTextContainer}>
+                  <Text style={styles.systemInfoText}>Tentang Sistem</Text>
+                  <Text style={styles.systemInfoSubtext}>Pelajari cara kerja sistem tiket</Text>
+                </View>
+              </View>
+              <ChevronRight size={22} color="#7c3aed" strokeWidth={2.5} />
+            </View>
           </TouchableOpacity>
 
           {/* Enhanced Search and Filter */}
@@ -590,6 +620,57 @@ const styles = StyleSheet.create({
   },
   createButtonArrow: {
     marginLeft: 12,
+  },
+  systemInfoButton: {
+    marginBottom: 24,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: '#e9d5ff',
+  },
+  systemInfoContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+  },
+  systemInfoLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    flex: 1,
+  },
+  systemInfoIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f3e8ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#e9d5ff',
+  },
+  systemInfoTextContainer: {
+    flex: 1,
+  },
+  systemInfoText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1f2937',
+    marginBottom: 3,
+    letterSpacing: -0.3,
+  },
+  systemInfoSubtext: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontWeight: '500',
   },
   searchFilterContainer: {
     marginBottom: 24,
