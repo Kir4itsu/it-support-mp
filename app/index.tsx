@@ -15,10 +15,13 @@ import {
   Search,
   Settings,
   Ticket as TicketIcon,
+  TrendingUp,
+  Zap,
 } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   ScrollView,
   StyleSheet,
@@ -57,13 +60,13 @@ export default function StudentDashboard() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'DIAJUKAN':
-        return theme.colors.warning;
+        return '#f59e0b';
       case 'DISETUJUI':
         return '#3b82f6';
       case 'DIPROSES':
-        return theme.colors.primary;
+        return '#8b5cf6';
       case 'SELESAI':
-        return theme.colors.success;
+        return '#10b981';
       default:
         return theme.colors.textLight;
     }
@@ -87,11 +90,11 @@ export default function StudentDashboard() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'DIAJUKAN':
-        return AlertCircle;
+        return Clock;
       case 'DISETUJUI':
         return CheckCircle2;
       case 'DIPROSES':
-        return Clock;
+        return Zap;
       case 'SELESAI':
         return CheckCircle2;
       default:
@@ -117,60 +120,73 @@ export default function StudentDashboard() {
 
   return (
     <View style={styles.container}>
+      {/* Enhanced Header with Gradient */}
       <LinearGradient
-        colors={[theme.colors.primary, theme.colors.primaryDark]}
+        colors={['#7c3aed', '#6d28d9', '#5b21b6']}
         style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
         <SafeAreaView edges={['top']}>
           <View style={styles.headerContent}>
+            {/* Header Top */}
             <View style={styles.headerTop}>
               <View style={styles.headerTextContainer}>
                 <Text style={styles.welcomeText}>Selamat Datang 👋</Text>
                 <Text style={styles.userName}>{userIdentity?.nama || 'Mahasiswa'}</Text>
+                <Text style={styles.userSubtext}>Mari kelola tiket IT Anda</Text>
               </View>
               <TouchableOpacity 
                 style={styles.adminButton}
                 onPress={() => router.push('/admin/login')}
+                activeOpacity={0.7}
               >
-                <Settings size={20} color="#fff" />
+                <Settings size={22} color="#fff" />
               </TouchableOpacity>
             </View>
             
-            {/* Quick Stats */}
-            <View style={styles.quickStats}>
-              <View style={styles.quickStatItem}>
-                <View style={[styles.quickStatIcon, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
-                  <TicketIcon size={18} color="#fff" />
+            {/* Enhanced Quick Stats */}
+            <View style={styles.quickStatsContainer}>
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.1)']}
+                style={styles.quickStats}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.quickStatItem}>
+                  <View style={[styles.quickStatIcon, { backgroundColor: 'rgba(255, 255, 255, 0.25)' }]}>
+                    <TicketIcon size={20} color="#fff" />
+                  </View>
+                  <View style={styles.quickStatText}>
+                    <Text style={styles.quickStatNumber}>{tickets.length}</Text>
+                    <Text style={styles.quickStatLabel}>Total Tiket</Text>
+                  </View>
                 </View>
-                <View style={styles.quickStatText}>
-                  <Text style={styles.quickStatNumber}>{tickets.length}</Text>
-                  <Text style={styles.quickStatLabel}>Total</Text>
+                
+                <View style={styles.quickStatDivider} />
+                
+                <View style={styles.quickStatItem}>
+                  <View style={[styles.quickStatIcon, { backgroundColor: 'rgba(251, 191, 36, 0.35)' }]}>
+                    <Clock size={20} color="#fbbf24" />
+                  </View>
+                  <View style={styles.quickStatText}>
+                    <Text style={styles.quickStatNumber}>{activeTickets}</Text>
+                    <Text style={styles.quickStatLabel}>Sedang Aktif</Text>
+                  </View>
                 </View>
-              </View>
-              
-              <View style={styles.quickStatDivider} />
-              
-              <View style={styles.quickStatItem}>
-                <View style={[styles.quickStatIcon, { backgroundColor: 'rgba(251, 191, 36, 0.3)' }]}>
-                  <Clock size={18} color="#fbbf24" />
+                
+                <View style={styles.quickStatDivider} />
+                
+                <View style={styles.quickStatItem}>
+                  <View style={[styles.quickStatIcon, { backgroundColor: 'rgba(16, 185, 129, 0.35)' }]}>
+                    <CheckCircle2 size={20} color="#10b981" />
+                  </View>
+                  <View style={styles.quickStatText}>
+                    <Text style={styles.quickStatNumber}>{completedTickets}</Text>
+                    <Text style={styles.quickStatLabel}>Selesai</Text>
+                  </View>
                 </View>
-                <View style={styles.quickStatText}>
-                  <Text style={styles.quickStatNumber}>{activeTickets}</Text>
-                  <Text style={styles.quickStatLabel}>Aktif</Text>
-                </View>
-              </View>
-              
-              <View style={styles.quickStatDivider} />
-              
-              <View style={styles.quickStatItem}>
-                <View style={[styles.quickStatIcon, { backgroundColor: 'rgba(34, 197, 94, 0.3)' }]}>
-                  <CheckCircle2 size={18} color="#22c55e" />
-                </View>
-                <View style={styles.quickStatText}>
-                  <Text style={styles.quickStatNumber}>{completedTickets}</Text>
-                  <Text style={styles.quickStatLabel}>Selesai</Text>
-                </View>
-              </View>
+              </LinearGradient>
             </View>
           </View>
         </SafeAreaView>
@@ -179,51 +195,64 @@ export default function StudentDashboard() {
       <ScrollView 
         style={styles.content}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.contentPadding}>
-          {/* Create Ticket Button */}
+          {/* Enhanced Create Ticket Button */}
           <TouchableOpacity 
             style={styles.createButton}
             onPress={() => router.push('/create-ticket')}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
             <LinearGradient
-              colors={[theme.colors.primary, theme.colors.primaryDark]}
+              colors={['#7c3aed', '#6d28d9']}
               style={styles.createButtonGradient}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+              end={{ x: 1, y: 0 }}
             >
-              <View style={styles.createButtonIcon}>
-                <Plus size={24} color="#fff" />
+              <View style={styles.createButtonLeft}>
+                <View style={styles.createButtonIcon}>
+                  <Plus size={26} color="#fff" strokeWidth={2.5} />
+                </View>
+                <View style={styles.createButtonTextContainer}>
+                  <Text style={styles.createButtonText}>Buat Tiket Baru</Text>
+                  <Text style={styles.createButtonSubtext}>Laporkan masalah IT Anda</Text>
+                </View>
               </View>
-              <View style={styles.createButtonTextContainer}>
-                <Text style={styles.createButtonText}>Buat Tiket Baru</Text>
-                <Text style={styles.createButtonSubtext}>Laporkan masalah IT Anda</Text>
+              <View style={styles.createButtonArrow}>
+                <ChevronRight size={24} color="rgba(255, 255, 255, 0.9)" strokeWidth={2.5} />
               </View>
-              <ChevronRight size={24} color="rgba(255, 255, 255, 0.8)" />
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Search and Filter */}
+          {/* Enhanced Search and Filter */}
           <View style={styles.searchFilterContainer}>
-            <View style={styles.searchContainer}>
-              <Search size={18} color={theme.colors.textLight} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Cari tiket atau kategori..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholderTextColor={theme.colors.textLight}
-              />
+            <View style={styles.searchWrapper}>
+              <View style={styles.searchContainer}>
+                <Search size={20} color="#9ca3af" strokeWidth={2} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Cari tiket atau kategori..."
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholderTextColor="#9ca3af"
+                />
+              </View>
             </View>
 
-            <View style={styles.filterChips}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.filterChipsScroll}
+              contentContainerStyle={styles.filterChips}
+            >
               <TouchableOpacity
                 style={[
                   styles.filterChip,
                   filterStatus === 'ALL' && styles.filterChipActive
                 ]}
                 onPress={() => setFilterStatus('ALL')}
+                activeOpacity={0.7}
               >
                 <Text style={[
                   styles.filterChipText,
@@ -239,6 +268,7 @@ export default function StudentDashboard() {
                   filterStatus === 'ACTIVE' && styles.filterChipActive
                 ]}
                 onPress={() => setFilterStatus('ACTIVE')}
+                activeOpacity={0.7}
               >
                 <Text style={[
                   styles.filterChipText,
@@ -254,6 +284,7 @@ export default function StudentDashboard() {
                   filterStatus === 'COMPLETED' && styles.filterChipActive
                 ]}
                 onPress={() => setFilterStatus('COMPLETED')}
+                activeOpacity={0.7}
               >
                 <Text style={[
                   styles.filterChipText,
@@ -262,56 +293,85 @@ export default function StudentDashboard() {
                   Selesai ({completedTickets})
                 </Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
 
-          {/* Tickets List */}
+          {/* Section Header */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Riwayat Tiket</Text>
+            <View style={styles.sectionHeaderLeft}>
+              <Text style={styles.sectionTitle}>Riwayat Tiket</Text>
+              {filteredTickets.length > 0 && (
+                <View style={styles.countBadge}>
+                  <Text style={styles.countBadgeText}>{filteredTickets.length}</Text>
+                </View>
+              )}
+            </View>
             {filteredTickets.length > 0 && (
-              <Text style={styles.sectionSubtitle}>
-                {filteredTickets.length} tiket ditemukan
-              </Text>
+              <TrendingUp size={20} color="#7c3aed" strokeWidth={2} />
             )}
           </View>
 
+          {/* Enhanced Content States */}
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.colors.primary} />
-              <Text style={styles.loadingText}>Memuat data...</Text>
+              <View style={styles.loadingIconContainer}>
+                <ActivityIndicator size="large" color="#7c3aed" />
+              </View>
+              <Text style={styles.loadingText}>Memuat data tiket...</Text>
+              <Text style={styles.loadingSubtext}>Mohon tunggu sebentar</Text>
             </View>
           ) : filteredTickets.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <View style={styles.emptyIconContainer}>
-                <TicketIcon size={48} color={theme.colors.textLight} />
-              </View>
+              <LinearGradient
+                colors={['#f3e8ff', '#ede9fe']}
+                style={styles.emptyIconContainer}
+              >
+                <TicketIcon size={56} color="#7c3aed" strokeWidth={1.5} />
+              </LinearGradient>
               <Text style={styles.emptyTitle}>
                 {searchQuery || filterStatus !== 'ALL' ? 'Tidak ada tiket ditemukan' : 'Belum ada tiket'}
               </Text>
               <Text style={styles.emptyDescription}>
                 {searchQuery || filterStatus !== 'ALL' 
-                  ? 'Coba ubah filter atau kata kunci pencarian'
-                  : 'Buat tiket pertama Anda untuk mendapatkan bantuan IT'}
+                  ? 'Coba ubah filter atau kata kunci pencarian Anda'
+                  : 'Buat tiket pertama Anda untuk mendapatkan bantuan IT dengan cepat'}
               </Text>
+              {!searchQuery && filterStatus === 'ALL' && (
+                <TouchableOpacity 
+                  style={styles.emptyButton}
+                  onPress={() => router.push('/create-ticket')}
+                  activeOpacity={0.8}
+                >
+                  <Plus size={18} color="#7c3aed" strokeWidth={2.5} />
+                  <Text style={styles.emptyButtonText}>Buat Tiket Sekarang</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <View style={styles.ticketList}>
-              {filteredTickets.map((ticket) => {
+              {filteredTickets.map((ticket, index) => {
                 const StatusIcon = getStatusIcon(ticket.status);
                 return (
                   <TouchableOpacity
                     key={ticket.id}
-                    style={styles.ticketCard}
+                    style={[
+                      styles.ticketCard,
+                      { 
+                        transform: [{ scale: 1 }],
+                      }
+                    ]}
                     onPress={() => router.push(`/ticket/${ticket.id}`)}
-                    activeOpacity={0.7}
+                    activeOpacity={0.8}
                   >
+                    {/* Card Header with Category and Status */}
                     <View style={styles.ticketCardHeader}>
                       <View style={styles.ticketCardLeft}>
-                        <View 
-                          style={[
-                            styles.categoryBadge, 
-                            { backgroundColor: `${getCategoryColor(ticket.category)}20` }
+                        <LinearGradient
+                          colors={[
+                            `${getCategoryColor(ticket.category)}25`,
+                            `${getCategoryColor(ticket.category)}15`
                           ]}
+                          style={styles.categoryBadge}
                         >
                           <Text 
                             style={[
@@ -321,32 +381,31 @@ export default function StudentDashboard() {
                           >
                             {ticket.category}
                           </Text>
-                        </View>
+                        </LinearGradient>
                       </View>
-                      <View style={styles.ticketCardRight}>
-                        <View 
+                      <View 
+                        style={[
+                          styles.statusBadgeNew,
+                          { backgroundColor: `${getStatusColor(ticket.status)}15` }
+                        ]}
+                      >
+                        <StatusIcon 
+                          size={14} 
+                          color={getStatusColor(ticket.status)}
+                          strokeWidth={2.5}
+                        />
+                        <Text 
                           style={[
-                            styles.statusBadgeNew,
-                            { backgroundColor: `${getStatusColor(ticket.status)}15` }
+                            styles.statusTextNew,
+                            { color: getStatusColor(ticket.status) }
                           ]}
                         >
-                          <StatusIcon 
-                            size={14} 
-                            color={getStatusColor(ticket.status)}
-                            style={styles.statusIcon}
-                          />
-                          <Text 
-                            style={[
-                              styles.statusTextNew,
-                              { color: getStatusColor(ticket.status) }
-                            ]}
-                          >
-                            {ticket.status}
-                          </Text>
-                        </View>
+                          {ticket.status}
+                        </Text>
                       </View>
                     </View>
 
+                    {/* Card Content */}
                     <Text style={styles.ticketSubject} numberOfLines={2}>
                       {ticket.subject}
                     </Text>
@@ -354,14 +413,18 @@ export default function StudentDashboard() {
                       {ticket.description}
                     </Text>
 
+                    {/* Card Footer */}
                     <View style={styles.ticketFooter}>
                       <View style={styles.ticketFooterLeft}>
-                        <Clock size={14} color={theme.colors.textLight} />
+                        <Clock size={15} color="#9ca3af" strokeWidth={2} />
                         <Text style={styles.ticketDate}>
                           {format(new Date(ticket.created_at), 'dd MMM yyyy, HH:mm')}
                         </Text>
                       </View>
-                      <ChevronRight size={18} color={theme.colors.textLight} />
+                      <View style={styles.ticketFooterRight}>
+                        <Text style={styles.viewDetailsText}>Lihat Detail</Text>
+                        <ChevronRight size={18} color="#7c3aed" strokeWidth={2.5} />
+                      </View>
                     </View>
                   </TouchableOpacity>
                 );
@@ -378,59 +441,72 @@ export default function StudentDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.lavenderLight,
+    backgroundColor: '#faf5ff',
   },
   header: {
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: 28,
   },
   headerContent: {
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: 20,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: theme.spacing.xl,
+    marginBottom: 24,
   },
   headerTextContainer: {
     flex: 1,
   },
   welcomeText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 4,
-    fontWeight: '500',
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.95)',
+    marginBottom: 6,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   userName: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     color: '#fff',
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  userSubtext: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
   },
   adminButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  quickStatsContainer: {
+    marginTop: 8,
   },
   quickStats: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    backdropFilter: 'blur(10px)',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   quickStatItem: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: 12,
   },
   quickStatIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -438,237 +514,339 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   quickStatNumber: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#fff',
     marginBottom: 2,
+    letterSpacing: -0.5,
   },
   quickStatLabel: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '600',
   },
   quickStatDivider: {
     width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    marginHorizontal: theme.spacing.xs,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    marginHorizontal: 8,
   },
   content: {
     flex: 1,
-    marginTop: -theme.spacing.lg,
+    marginTop: -16,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   contentPadding: {
-    padding: theme.spacing.lg,
+    padding: 20,
   },
   createButton: {
-    marginBottom: theme.spacing.xl,
-    borderRadius: theme.borderRadius.xl,
+    marginBottom: 24,
+    borderRadius: 20,
     overflow: 'hidden',
-    ...theme.shadows.lg,
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
   },
   createButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.lg,
-    gap: theme.spacing.md,
+    justifyContent: 'space-between',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+  },
+  createButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    flex: 1,
   },
   createButtonIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   createButtonTextContainer: {
     flex: 1,
   },
   createButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: '#fff',
-    marginBottom: 2,
+    marginBottom: 3,
+    letterSpacing: -0.3,
   },
   createButtonSubtext: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '500',
+  },
+  createButtonArrow: {
+    marginLeft: 12,
   },
   searchFilterContainer: {
-    marginBottom: theme.spacing.xl,
+    marginBottom: 24,
+  },
+  searchWrapper: {
+    marginBottom: 14,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: theme.borderRadius.lg,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-    gap: theme.spacing.sm,
-    ...theme.shadows.sm,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f3e8ff',
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
-    color: theme.colors.text,
-    paddingVertical: theme.spacing.xs,
+    fontSize: 15,
+    color: '#1f2937',
+    fontWeight: '500',
+  },
+  filterChipsScroll: {
+    flexGrow: 0,
   },
   filterChips: {
     flexDirection: 'row',
-    gap: theme.spacing.sm,
+    gap: 10,
   },
   filterChip: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.full,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
     backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
+    borderWidth: 2,
+    borderColor: '#e9d5ff',
   },
   filterChipActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
+    backgroundColor: '#7c3aed',
+    borderColor: '#7c3aed',
   },
   filterChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6b7280',
   },
   filterChipTextActive: {
     color: '#fff',
   },
   sectionHeader: {
-    marginBottom: theme.spacing.lg,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1f2937',
+    letterSpacing: -0.5,
   },
-  sectionSubtitle: {
+  countBadge: {
+    backgroundColor: '#7c3aed',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  countBadgeText: {
+    color: '#fff',
     fontSize: 13,
-    color: theme.colors.textSecondary,
+    fontWeight: '800',
   },
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: theme.spacing.xxl * 2,
+    paddingVertical: 80,
+  },
+  loadingIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
   },
   loadingText: {
-    marginTop: theme.spacing.md,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 6,
+  },
+  loadingSubtext: {
     fontSize: 14,
-    color: theme.colors.textSecondary,
+    color: '#9ca3af',
+    fontWeight: '500',
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: theme.spacing.xxl * 2,
-    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: 60,
+    paddingHorizontal: 32,
   },
   emptyIconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#fff',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: theme.spacing.lg,
-    ...theme.shadows.md,
+    marginBottom: 24,
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.sm,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1f2937',
+    marginBottom: 10,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   emptyDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
+    fontSize: 15,
+    color: '#6b7280',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
+    fontWeight: '500',
+    marginBottom: 24,
+  },
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f3e8ff',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#e9d5ff',
+  },
+  emptyButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#7c3aed',
   },
   ticketList: {
-    gap: theme.spacing.md,
+    gap: 16,
   },
   ticketCard: {
     backgroundColor: '#fff',
-    borderRadius: theme.borderRadius.xl,
-    padding: theme.spacing.lg,
-    ...theme.shadows.md,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#f3e8ff',
   },
   ticketCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: 14,
   },
   ticketCardLeft: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
     flex: 1,
   },
-  ticketCardRight: {
-    marginLeft: theme.spacing.sm,
-  },
   categoryBadge: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.md,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 10,
   },
   categoryText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   statusBadgeNew: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.md,
-    gap: 4,
-  },
-  statusIcon: {
-    marginRight: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 6,
   },
   statusTextNew: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   ticketSubject: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.sm,
-    lineHeight: 22,
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1f2937',
+    marginBottom: 8,
+    lineHeight: 24,
+    letterSpacing: -0.3,
   },
   ticketDescription: {
     fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: theme.spacing.md,
+    color: '#6b7280',
+    lineHeight: 21,
+    marginBottom: 16,
+    fontWeight: '500',
   },
   ticketFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: theme.spacing.md,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.borderLight,
+    borderTopColor: '#f3e8ff',
   },
   ticketFooterLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 7,
   },
   ticketDate: {
-    fontSize: 12,
-    color: theme.colors.textLight,
-    fontWeight: '500',
+    fontSize: 13,
+    color: '#9ca3af',
+    fontWeight: '600',
+  },
+  ticketFooterRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  viewDetailsText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#7c3aed',
   },
   bottomSpacer: {
-    height: theme.spacing.xl,
+    height: 32,
   },
 });
